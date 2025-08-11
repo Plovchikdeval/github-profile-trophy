@@ -16,6 +16,13 @@ async function* createAsyncIterable<T>(
     const isLastAttempt = i === retries - 1;
     try {
       const data = await callback({ attempt: i });
+      
+      // If we get null (rate limit), don't retry - just return it immediately
+      if (data === null) {
+        yield data;
+        return;
+      }
+      
       yield data;
       return;
     } catch (e) {

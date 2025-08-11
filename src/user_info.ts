@@ -56,14 +56,16 @@ export class UserInfo {
   public readonly joined2020: number;
   public readonly ogAccount: number;
   constructor(
-    userActivity: GitHubUserActivity,
-    userIssue: GitHubUserIssue,
-    userPullRequest: GitHubUserPullRequest,
+    userActivity: GitHubUserActivity | null,
+    userIssue: GitHubUserIssue | null,
+    userPullRequest: GitHubUserPullRequest | null,
     userRepository: GitHubUserRepository,
   ) {
-    const totalCommits =
+    // Handle null userActivity due to rate limits
+    const totalCommits = userActivity ? 
       userActivity.contributionsCollection.restrictedContributionsCount +
-      userActivity.contributionsCollection.totalCommitContributions;
+      userActivity.contributionsCollection.totalCommitContributions : 0;
+      
     const totalStargazers = userRepository.repositories.nodes.reduce(
       (prev: number, node: Repository) => {
         return prev + node.stargazers.totalCount;
@@ -81,29 +83,25 @@ export class UserInfo {
         });
       }
     });
-    const durationTime = new Date().getTime() -
-      new Date(userActivity.createdAt).getTime();
+    
+    // Handle null userActivity for date calculations
+    const createdAt = userActivity?.createdAt || new Date().toISOString();
+    const durationTime = new Date().getTime() - new Date(createdAt).getTime();
     const durationYear = new Date(durationTime).getUTCFullYear() - 1970;
     const durationDays = Math.floor(
       durationTime / (1000 * 60 * 60 * 24) / 100,
     );
-    const ancientAccount =
-      new Date(userActivity.createdAt).getFullYear() <= 2010 ? 1 : 0;
-    const joined2020 = new Date(userActivity.createdAt).getFullYear() == 2020
-      ? 1
-      : 0;
-    const ogAccount = new Date(userActivity.createdAt).getFullYear() <= 2008
-      ? 1
-      : 0;
+    const ancientAccount = new Date(createdAt).getFullYear() <= 2010 ? 1 : 0;
+    const joined2020 = new Date(createdAt).getFullYear() == 2020 ? 1 : 0;
+    const ogAccount = new Date(createdAt).getFullYear() <= 2008 ? 1 : 0;
 
     this.totalCommits = totalCommits;
-    this.totalFollowers = userActivity.followers.totalCount;
-    this.totalIssues = userIssue.openIssues.totalCount +
-      userIssue.closedIssues.totalCount;
-    this.totalOrganizations = userActivity.organizations.totalCount;
-    this.totalPullRequests = userPullRequest.pullRequests.totalCount;
-    this.totalReviews =
-      userActivity.contributionsCollection.totalPullRequestReviewContributions;
+    this.totalFollowers = userActivity?.followers.totalCount || 0;
+    this.totalIssues = userIssue ? 
+      userIssue.openIssues.totalCount + userIssue.closedIssues.totalCount : 0;
+    this.totalOrganizations = userActivity?.organizations.totalCount || 0;
+    this.totalPullRequests = userPullRequest?.pullRequests.totalCount || 0;
+    this.totalReviews = userActivity?.contributionsCollection.totalPullRequestReviewContributions || 0;
     this.totalStargazers = totalStargazers;
     this.totalRepositories = userRepository.repositories.totalCount;
     this.languageCount = languages.size;
