@@ -63,6 +63,13 @@ export class GithubApiService extends GithubRepository {
       return repository;
     }
 
+    // If repository is null due to rate limit, try to continue with partial data
+    if (repository === null) {
+      Logger.warn(`Rate limit hit when fetching repository data for ${username}. Attempting to continue with partial data.`);
+      // Return a ServiceError to indicate limited functionality, but with a more user-friendly message
+      return new ServiceError("Data temporarily limited due to API constraints. Please try again later for complete information.", EServiceKindError.RATE_LIMIT);
+    }
+
     const promises = Promise.allSettled([
       this.requestUserActivity(username),
       this.requestUserIssue(username),
@@ -80,10 +87,20 @@ export class GithubApiService extends GithubRepository {
       return new ServiceError("Not found", EServiceKindError.NOT_FOUND);
     }
 
+    // Handle null values due to rate limits gracefully
+    const activityValue = activity.status === "fulfilled" ? activity.value : null;
+    const issueValue = issue.status === "fulfilled" ? issue.value : null; 
+    const pullRequestValue = pullRequest.status === "fulfilled" ? pullRequest.value : null;
+
+    // If any data is null due to rate limits, log a warning but continue
+    if (activityValue === null || issueValue === null || pullRequestValue === null) {
+      Logger.warn(`Some data unavailable due to rate limits for user ${username}. Continuing with available data.`);
+    }
+
     return new UserInfo(
-      (activity as PromiseFulfilledResult<GitHubUserActivity>).value,
-      (issue as PromiseFulfilledResult<GitHubUserIssue>).value,
-      (pullRequest as PromiseFulfilledResult<GitHubUserPullRequest>).value,
+      activityValue as GitHubUserActivity,
+      issueValue as GitHubUserIssue,
+      pullRequestValue as GitHubUserPullRequest,
       repository,
     );
   }
@@ -98,11 +115,19 @@ export class GithubApiService extends GithubRepository {
         CONSTANTS.DEFAULT_GITHUB_RETRY_DELAY,
       );
       return await retry.fetch<Promise<T>>(async ({ attempt }) => {
-        return await requestGithubData(
+        const result = await requestGithubData(
           query,
           variables,
           TOKENS[attempt],
         );
+        
+        // If rate limit was hit and null was returned, skip retry and return null
+        if (result === null) {
+          Logger.warn(`Rate limit hit for token ${attempt + 1}. Skipping retry and returning null.`);
+          return null;
+        }
+        
+        return result;
       });
     } catch (error) {
       if (error.cause instanceof ServiceError) {

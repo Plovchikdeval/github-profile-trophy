@@ -121,7 +121,7 @@ export class Error400 extends BaseError {
 
 export class Error419 extends BaseError {
   readonly status = 419;
-  readonly message = "Rate Limit Exceeded";
+  readonly message = "Data temporarily limited due to API constraints. Please try again later for complete information.";
 }
 
 export class Error404 extends BaseError {
